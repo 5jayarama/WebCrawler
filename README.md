@@ -3,6 +3,9 @@ Project 5: Web Crawler
 Important! Sometimes the program will not execute properly, and print: "Error: No login token" and sys exit. Just rerun it.
 I made the error print, because otherwise the terminal will give a more confusing href KeyError.
 
+If I was unable to get the program to run, please run it manually when the server is fixed or not bogged down. The program works,
+I got all the flags, and even implemented multi-threading. However, the gradescope keeps timing out.
+
 3700crawler
 This is the primary class of this project: it login into fakebook and crawls through each page to find the flags. The main method 
 here is the run method, which does the login process, after which the program reaches the crawl method, which crawls through 
@@ -26,10 +29,10 @@ I was able to search up some guides on how to use a Parser to retrive links usin
 this for csrf token as well. when I saw the h3 tag for flag in the project description, I added that to the Parser class as well.
 I had some trouble getting urls while traversing fakebook, but this part was easier for me because i was able to find some  
 resources online and it had a much better description in the project of how to complete this. 
-Runtime(used to take like 40 minutes)-
+Runtime(used to be faster before getting bogged down)-
 Runtime was absolutely abmyssal though. To improve the runtime, I tried printing each time it looked for a url and each time it 
 found it. It used to be like 5 to 15 times, so I tried some different methods like removing the url after use, but it barely 
-helped. So I just used random, since going though the urls in order was taking sooo long.
+helped. So I just used random, which made the url finding more efficient. In addition I implemented multithreading, but due to server issues it did not make the program run faster. It will run in 30 minutes if there aren't too many other ppl running at the same time.
 
 Testing:
 Testing was rather difficult. For both logging in and crawling, I shoved a large number of prints in order to debug any problems, and I later deleted or commented them out. For login I would print out entire htmls and repsonses to ensure that every step was done correctly. For the crawl I mainly had trouble with traversing past the first one or two links. I created a parser class tag and parse type for flag to ensure that it would be collected properly, since my runtime was rather bad, and finding flags took a long time. 
