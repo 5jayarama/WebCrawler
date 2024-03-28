@@ -7,6 +7,7 @@ import re
 import sys
 from html.parser import HTMLParser
 from parser1 import Parser
+import random
 
 DEFAULT_SERVER = "proj5.3700.network"
 DEFAULT_PORT = 443
@@ -135,15 +136,19 @@ class Crawler:
     # after logging in, crawl through fakebook to find the necessary flags
     def crawl(self):
         flags_found = 0
-        while self.urls_to_visit: # while there are still flags to find
-            # look for the next url to crawl through which has not been visited 
-            for url in self.urls_to_visit:
+        while flags_found < 5: # while there are still flags to find
+            # look for the next url to crawl through which has not been visited
+            while self.urls_to_visit:
+                url = random.choice(self.urls_to_visit)
+                # print("new_url: ", url)
                 if url not in self.visited_urls:
                     next_url = url
                     self.urls_to_visit.remove(next_url)
+                    self.visited_urls.append(next_url)
+                    # print("next url is: ", next_url)
                     break
-            if next_url is not None:
-                self.visited_urls.append(next_url)
+                else:
+                    continue
            
             # create a get request and record the response
             request = f"GET {next_url} HTTP/1.1\r\n"
@@ -173,7 +178,6 @@ class Crawler:
                 # create a url parser to find more urls
                 url_parser = Parser("url")
                 url_parser.feed(body)
-                # print("finding new urls")
                 if (body):
                     self.get_linked_urls(url_parser.results["href"])
     
