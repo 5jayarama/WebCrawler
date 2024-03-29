@@ -8,7 +8,6 @@ import sys
 from html.parser import HTMLParser
 from parser1 import Parser
 import random
-import gzip
 
 DEFAULT_SERVER = "proj5.3700.network"
 DEFAULT_PORT = 443
@@ -28,11 +27,6 @@ class Crawler:
 
     # main run method
     def run(self):
-        # Fakebook uses HTTPS, so TLS over TCP
-        mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # added encryption socket connection with TLS and decoding
-        self.socket = ssl.create_default_context().wrap_socket(mysocket, server_hostname=self.server)
-        self.socket.connect((self.server, self.port))
         # open login page, make get request, and organize it
         request = f'GET /accounts/login/?next=/fakebook/ HTTP/1.1\r\nHost:{self.server}:{self.port}\r\n\r\n'
         get_response = self.send(request)
@@ -101,8 +95,14 @@ class Crawler:
 
     # moved the send code from run here
     def send(self, request):
+        # Fakebook uses HTTPS, so TLS over TCP
+        mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # added encryption socket connection with TLS and decoding
+        self.socket = ssl.create_default_context().wrap_socket(mysocket, server_hostname=self.server)
+        self.socket.connect((self.server, self.port))
         self.socket.send(request.encode('ascii'))
         data = self.socket.recv(5000).decode('utf-8')
+        self.socket.close()  # Close the socket after it's used
         # code below was added for 1.1 chunked responses: if data is chunked, call dechunk
         data_split = re.split("\r\n", data)
         # print("Data_split: ", data_split)
@@ -111,23 +111,6 @@ class Crawler:
                 if "chunked" in re.split("\s", data_line):
                     return self.dechunk(data)
         return data
-    
-    def send_crawl(self, request):
-        self.socket.send(request.encode('ascii'))
-        data = self.socket.recv(5000)
-        self.socket.close()  # Close the socket after it's used
-        # code below was added for 1.1 chunked responses: if data is chunked, call dechunk
-        header, body = data.split(b"\r\n\r\n")
-        body = gzip.decompress(body)
-        header = header.decode('utf-8')
-        body = body.decode('utf-8')
-        data_split = re.split("\r\n", header)
-        # print("Data_split: ", data_split)
-        for data_line in data_split:
-            if len(data_line) >= 18 and data_line[0:17] == "Transfer-Encoding":
-                if "chunked" in re.split("\s", data_line):
-                    body = self.dechunk(data)
-        return header, body
     
     # dechunk by removing every other line in the body
     def dechunk(self, data):
@@ -162,33 +145,25 @@ class Crawler:
                     next_url = url
                     self.urls_to_visit.remove(next_url)
                     self.visited_urls.append(next_url)
-                    # print("next url is: ", next_url)
+                    print("next url is: ", next_url)
                     break
                 else:
                     continue
 
-            # Fakebook uses HTTPS, so TLS over TCP
-            mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # added encryption socket connection with TLS and decoding
-            self.socket = ssl.create_default_context().wrap_socket(mysocket, server_hostname=self.server)
-            self.socket.connect((self.server, self.port))
-
             # create a get request and record the response
-            request = f"GET {next_url} HTTP/1.1\r\nAccept-Encoding: gzip\r\n"
+            request = f"GET {next_url} HTTP/1.1\r\n"
             headers = f"Host: {self.server}:{self.port}\r\nCookie: {self.csrftoken}; {self.session_id}\r\nConnection: " \
                       f"keep-alive\r\n\r\n "
             request += headers
             # print("crawl request: ", request)
-
-            header, body = self.send_crawl(request)
-
+            response = self.send(request)
             # print("New page response: ", response)
 
             # split response into body and header.
-            # header, body = response.split("\r\n\r\n")
+            header, body = response.split("\r\n\r\n")
             # print("crawling header ", header)
             # print("crawling body", body)
-            # gzip.decompress(body)
+
             # determine next steps based on header
             if "200" in header: # 200 OK
                 # use parser to find the flag
