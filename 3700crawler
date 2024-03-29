@@ -145,7 +145,7 @@ class Crawler:
                     next_url = url
                     self.urls_to_visit.remove(next_url)
                     self.visited_urls.append(next_url)
-                    print("next url is: ", next_url)
+                    # print("next url is: ", next_url)
                     break
                 else:
                     continue
