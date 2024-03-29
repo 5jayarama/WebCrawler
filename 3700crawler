@@ -115,6 +115,7 @@ class Crawler:
     def send_crawl(self, request):
         self.socket.send(request.encode('ascii'))
         data = self.socket.recv(5000)
+        self.socket.close()  # Close the socket after it's used
         # code below was added for 1.1 chunked responses: if data is chunked, call dechunk
         header, body = data.split(b"\r\n\r\n")
         body = gzip.decompress(body)
