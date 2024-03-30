@@ -1,19 +1,18 @@
 Project 5: Web Crawler
 
 Important! Sometimes the program will not execute properly, and print: "Error: No login token" and sys exit. Just rerun it.
-I made the error print, because otherwise the terminal will give a more confusing href KeyError.
+Other than the error print, the terminal will give a more confusing href KeyError sometimes(depends on the code version I ended up submiting). Rerun that too.
 
-If I was unable to get the program to run, please run it manually when the server is fixed or not bogged down. The program works,
-I got all the flags, and even implemented accept encoding gzip. However, the gradescope keeps timing out.
+The program takes a while to run, even with all the performance improvements that I made.
 
 3700crawler
 This is the primary class of this project: it login into fakebook and crawls through each page to find the flags. The main method 
 here is the run method, which does the login process, after which the program reaches the crawl method, which crawls through 
-fakebook and accesses new links to find the flags
+fakebook and accesses new links to find the flags. I have a send method which is now only for the run() part, and a send_crawl method which I implemented to read content-length and work with one socket. I have a get_linked_urls method which I optimized pretty well. The run and crawl method may look long, but exluding comments and spaces, they are only 43 and 42 lines respectively.
 
 parser1.py
 This is the helper class for the 3700 crawler. It parses through the html content. It helps find the csrf token, flag, and url.
-The main method here is the handle_start_tag method, which parses the information based on the tag and the parse_type
+The main method here is the handle_start_tag method, which parses the information based on the tag and the parse_type. I spent the vast majority of my time on the crawler class though
 
 Challenges faced:
 Login-
@@ -29,10 +28,8 @@ I was able to search up some guides on how to use a Parser to retrive links usin
 this for csrf token as well. when I saw the h3 tag for flag in the project description, I added that to the Parser class as well.
 I had some trouble getting urls while traversing fakebook, but this part was easier for me because i was able to find some  
 resources online and it had a much better description in the project of how to complete this. 
-Runtime(used to be faster before getting bogged down)-
-Runtime was absolutely abmyssal though. To improve the runtime, I tried printing each time it looked for a url and each time it 
-found it. It used to be like 5 to 15 times, so I tried some different methods like removing the url after use, but it barely 
-helped. So I just used random, which made the url finding more efficient. It will run in 30 minutes if there aren't too many other ppl running at the same time.
+Runtime-
+Runtime was absolutely abmyssal though. To improve the runtime, I used set instead of list for urls_to_visit and visited_urls, I remade my program to not use a new socket each crawl iteration, and more.
 
 Testing:
-Testing was rather difficult. For both logging in and crawling, I shoved a large number of prints in order to debug any problems, and I later deleted or commented them out. For login I would print out entire htmls and repsonses to ensure that every step was done correctly. For the crawl I mainly had trouble with traversing past the first one or two links. I created a parser class tag and parse type for flag to ensure that it would be collected properly, since my runtime was rather bad, and finding flags took a long time. 
+Testing was rather difficult. For both logging in and crawling, I shoved a large number of prints in order to debug any problems, and I later deleted or commented them out. For login I would print out entire htmls and repsonses to ensure that every step was done correctly. For the crawl I ran through the code with a ton of prints, like the whole response, to debug it. After I switched to one socket, I got partially cut responses, which I didn't know at first. I would run the code and only 2 to 4 flags would come, so I spent a while waiting for tests to finish and figure out the problem (In the end I made the send_crawl). Using extensive prints will usually reveal potential issues without waiting for the entire code to run, and I wish I used prints more generously than I did at first.

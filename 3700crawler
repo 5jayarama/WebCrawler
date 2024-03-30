@@ -22,11 +22,16 @@ class Crawler:
         self.socket = None
         self.csrftoken = ""
         self.session_id = ""
-        self.urls_to_visit = []
-        self.visited_urls = []
+        self.urls_to_visit = set()
+        self.visited_urls = set()
 
     # main run method
     def run(self):
+        # Fakebook uses HTTPS, so TLS over TCP
+        mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # added encryption socket connection with TLS and decoding
+        self.socket = ssl.create_default_context().wrap_socket(mysocket, server_hostname=self.server)
+        self.socket.connect((self.server, self.port))
         # open login page, make get request, and organize it
         request = f'GET /accounts/login/?next=/fakebook/ HTTP/1.1\r\nHost:{self.server}:{self.port}\r\n\r\n'
         get_response = self.send(request)
@@ -95,23 +100,45 @@ class Crawler:
 
     # moved the send code from run here
     def send(self, request):
-        # Fakebook uses HTTPS, so TLS over TCP
-        mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # added encryption socket connection with TLS and decoding
-        self.socket = ssl.create_default_context().wrap_socket(mysocket, server_hostname=self.server)
-        self.socket.connect((self.server, self.port))
         self.socket.send(request.encode('ascii'))
-        data = self.socket.recv(5000).decode('utf-8')
-        self.socket.close()  # Close the socket after it's used
+        data = self.socket.recv(4096).decode('utf-8')
         # code below was added for 1.1 chunked responses: if data is chunked, call dechunk
-        data_split = re.split("\r\n", data)
-        # print("Data_split: ", data_split)
-        for data_line in data_split:
-            if len(data_line) >= 18 and data_line[0:17] == "Transfer-Encoding":
-                if "chunked" in re.split("\s", data_line):
-                    return self.dechunk(data)
+        if "Transfer-Encoding: chunked" in data:
+            data = self.dechunk(data)
         return data
     
+    # created this method for reusing sockets
+    def send_crawl(self, request):
+        self.socket.send(request.encode('ascii'))
+        # Initial read to get headers
+        headers = ''
+        while '\r\n\r\n' not in headers:
+            headers += self.socket.recv(1024).decode('utf-8')
+        
+        # find where the headers end
+        header_end_index = headers.find('\r\n\r\n') + 4
+        
+        # extract Content-Length
+        content_length = 0
+        for line in headers.split('\r\n'):
+            if line.lower().startswith('content-length:'):
+                content_length = int(line.split(":")[1].strip())
+                break
+
+        # calculate bytes already received
+        already_received = len(headers) - header_end_index
+        # initialize body
+        body = headers[header_end_index:]
+        
+        # read the rest of the body based on content_length
+        while already_received < content_length:
+            chunk = self.socket.recv(content_length - already_received)
+            body += chunk.decode('utf-8')
+            already_received += len(chunk)
+        response = headers[:header_end_index] + body
+        return response # changed from returning header, body
+
+
     # dechunk by removing every other line in the body
     def dechunk(self, data):
         data_list = re.split("\r\n\r\n", data) # split the data into a header and body
@@ -124,66 +151,42 @@ class Crawler:
             i += 1
         return data_list[0] + "\r\n\r\n" + new_body
     
-    # get all the urls that start with /fakebook/
     def get_linked_urls(self, urls):
-        filtered_urls = []
         for url in urls:
-            # print("New URL: ", url)
-            if len(url) >= 10 and url[:10] == "/fakebook/":
-                filtered_urls.append(url)
-        self.urls_to_visit.extend(filtered_urls)
+            # Ensure the URL meets your criteria before adding
+            if url.startswith("/fakebook/"):
+                # Add the URL if it's not already visited or in the queue
+                if url not in self.visited_urls and url not in self.urls_to_visit:
+                    self.urls_to_visit.add(url)
 
     # after logging in, crawl through fakebook to find the necessary flags
     def crawl(self):
         flags_found = 0
-        while flags_found < 5: # while there are still flags to find
-            # look for the next url to crawl through which has not been visited
-            while self.urls_to_visit:
-                url = random.choice(self.urls_to_visit)
-                # print("new_url: ", url)
-                if url not in self.visited_urls:
-                    next_url = url
-                    self.urls_to_visit.remove(next_url)
-                    self.visited_urls.append(next_url)
-                    # print("next url is: ", next_url)
-                    break
-                else:
-                    continue
-
+        i = 0
+        if not self.urls_to_visit:
+            print("ran out of urls")
+        while self.urls_to_visit: # while there are still flags to find
+            i += 1
+            next_url = self.urls_to_visit.pop()
+            # print("next url: ", next_url, flush=True)
+            # print("flags found: ", flags_found, flush=True)
+            if next_url in self.visited_urls:
+                continue
+            self.visited_urls.add(next_url)
+           
             # create a get request and record the response
-            request = f"GET {next_url} HTTP/1.1\r\n"
-            headers = f"Host: {self.server}:{self.port}\r\nCookie: {self.csrftoken}; {self.session_id}\r\nConnection: " \
-                      f"keep-alive\r\n\r\n "
-            request += headers
+            request = f"GET {next_url} HTTP/1.1\r\n" + \
+                    f"Host: {self.server}\r\n" + \
+                    f"Cookie: {self.csrftoken}; {self.session_id}\r\n" + \
+                    "Connection: keep-alive\r\n" + \
+                    "\r\n"
             # print("crawl request: ", request)
-            response = self.send(request)
-            # print("New page response: ", response)
+            response = self.send_crawl(request)
+            # print("Resp:", response)
 
-            # split response into body and header.
-            header, body = response.split("\r\n\r\n")
-            # print("crawling header ", header)
-            # print("crawling body", body)
-
-            # determine next steps based on header
-            if "200" in header: # 200 OK
-                # use parser to find the flag
-                flag_parser = Parser("flag")
-                flag_parser.feed(body)
-                # if the flag is found using parser, then print it
-                if "flag" in flag_parser.results:
-                    print(flag_parser.results["flag"][6:])
-                    flags_found += 1
-                    if flags_found == 5:
-                        return
-                # create a url parser to find more urls
-                url_parser = Parser("url")
-                url_parser.feed(body)
-                if (body):
-                    self.get_linked_urls(url_parser.results["href"])
-    
-            elif "302" in header: # 302 FOUND
+            if "302" in response: # 302 FOUND
                 # Try the request again using the new URL given by the server in the Location header
-                headers = re.split("\r\n", header)
+                headers = re.split("\r\n", response)
                 redirect = ""
                 for header in headers:
                     if len(header) >= 8 and header[0:8] == "Location":
@@ -192,13 +195,35 @@ class Crawler:
                 continue
             
             # if 403 or 404, just abondon url and enter loop again
-            elif "403" in header or "404" in header:
+            elif "403" in response or "404" in response:
                 continue
             # program should not get to anything below here
-            elif "500" in header or "504" in header:
+            elif "500" in response or "504" in response:
                 continue
+
+            # use parser to find the flag
+            flag_parser = Parser("flag")
+            flag_parser.feed(response)
+            # if the flag is found using parser, then print it
+            if "flag" in flag_parser.results:
+                print(flag_parser.results["flag"][6:])
+                flags_found += 1
+                if flags_found == 5:
+                    return
+            # create a url parser to find more urls
+            url_parser = Parser("url")
+            url_parser.feed(response)
+            # print("finding new urls")
+            if "href" in url_parser.results:
+                self.get_linked_urls(url_parser.results["href"])
             else:
                 continue
+            
+            if "Connection: close" in response:
+                mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                # added encryption socket connection with TLS and decoding
+                self.socket = ssl.create_default_context().wrap_socket(mysocket, server_hostname=self.server)
+                self.socket.connect((self.server, self.port))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='crawl Fakebook')
