@@ -49,11 +49,3 @@ class Parser(HTMLParser):
             return "Error"
         else:
             return self.results["csrfmiddlewaretoken"]
-
-if __name__ == "__main__":
-    # stuff to help login
-    htmlparser = Parser("flag")
-    login_html = open("login_html", mode='r')
-    content = login_html.read()
-    htmlparser.feed(content)
-    login_html.close()

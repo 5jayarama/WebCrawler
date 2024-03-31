@@ -7,12 +7,11 @@ import re
 import sys
 from html.parser import HTMLParser
 from parser1 import Parser
-import random
 
 DEFAULT_SERVER = "proj5.3700.network"
 DEFAULT_PORT = 443
 
-
+# represents a crawler that logins into fakebook and crawls though it for 5 secret flags
 class Crawler:
     def __init__(self, args):
         self.server = args.server
@@ -25,7 +24,7 @@ class Crawler:
         self.urls_to_visit = set()
         self.visited_urls = set()
 
-    # main run method
+    # main run method that logs into fakebook
     def run(self):
         # Fakebook uses HTTPS, so TLS over TCP
         mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -36,8 +35,6 @@ class Crawler:
         request = f'GET /accounts/login/?next=/fakebook/ HTTP/1.1\r\nHost:{self.server}:{self.port}\r\n\r\n'
         get_response = self.send(request)
         get_response_split = re.split("\r\n", get_response)
-        # print("Get response: ", get_response_split)
-
         # locate the csrf token cookie from the response
         login_cookie = ""
         for line in get_response_split:
@@ -47,28 +44,21 @@ class Crawler:
                 for word in words:
                     if len(word) >= 9 and word[0:9] == "csrftoken": #look for word "csrftoken=<long number>"
                         login_cookie = word[0:len(word) - 1]
-        # print("Login cookie: ", login_cookie)
-
         # parse the HTML data to extract the CSRF token
         parser = Parser("csrf")
         html = re.split("\r\n\r\n", get_response)[1]
         parser.feed(html)
-        # print("parser results: ", parser.results)
-
         # use parser to retrieve the token
         login_token = parser.get_csrf_token()
         if login_token == "Error":
             print("Error: No login token")
             sys.exit(1)
-
         # create a POST request
         post_data = f"username={self.username}&password={self.password}&csrfmiddlewaretoken={login_token}&next=/fakebook/"
         post_data_len = len(post_data)
         request = f'''POST /accounts/login/?next=/fakebook/ HTTP/1.1\r\nHost: {self.server}\r\nCookie: {login_cookie}\r\nContent-Length: {post_data_len}\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n{post_data}\r\n\r\n'''
-
         # split the response and get the csrf token and session id
         post_response_split = re.split("\r\n", self.send(request))
-        # print("Post Response: ", post_response_split)
         for line in post_response_split:
             if len(line) >= 10 and line[0:10] == "set-cookie":
                 # print("Line with csrftoken: ", line)
@@ -84,13 +74,10 @@ class Crawler:
         # redirecting to fakebook page
         request = f'GET /fakebook/ HTTP/1.1\r\nHost:{self.server}:{self.port}\r\n' \
                   f'Cookie: {self.csrftoken}; {self.session_id}\r\n\r\n'
-        # print("second get request: ", request)
         login_response = re.split("\r\n\r\n", self.send(request))
-
         # login response of 200 means successfully login
         p = Parser("url")
         p.feed(login_response[1])
-        # print("Parser results: ", p.results)
         self.get_linked_urls(p.results["href"])
         self.crawl()
 
@@ -104,7 +91,7 @@ class Crawler:
             data = self.dechunk(data)
         return data
     
-    # created this method for reusing sockets
+    # created this method for reusing sockets, uses content length to make proper sends
     def send_crawl(self, request):
         self.socket.send(request.encode('ascii'))
         # Initial read to get headers
@@ -115,7 +102,7 @@ class Crawler:
         # find where the headers end
         header_end_index = headers.find('\r\n\r\n') + 4
         
-        # extract Content-Length
+        # extract content-length
         content_length = 0
         for line in headers.split('\r\n'):
             if line.lower().startswith('content-length:'):
@@ -147,11 +134,12 @@ class Crawler:
             i += 1
         return data_list[0] + "\r\n\r\n" + new_body
     
+    # gets the urls needed for crawling
     def get_linked_urls(self, urls):
         for url in urls:
-            # Ensure the URL meets your criteria before adding
+            # ensure the URL meets your criteria before adding
             if url.startswith("/fakebook/"):
-                # Add the URL if it's not already visited or in the queue
+                # add the URL if it's not already visited or in the queue
                 if url not in self.visited_urls and url not in self.urls_to_visit:
                     self.urls_to_visit.add(url)
 
@@ -160,8 +148,6 @@ class Crawler:
         flags_found = 0
         while self.urls_to_visit: # while there are still flags to find
             next_url = self.urls_to_visit.pop()
-            # print("next url: ", next_url, flush=True)
-            # print("flags found: ", flags_found, flush=True)
             if next_url in self.visited_urls:
                 continue
             self.visited_urls.add(next_url)
@@ -175,13 +161,6 @@ class Crawler:
             # print("crawl request: ", request)
             header, body = self.send_crawl(request)
             # print("Resp:", response)
-
-            if "Connection: close" in header:
-                print("connection close in header")
-                mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                # added encryption socket connection with TLS and decoding
-                self.socket = ssl.create_default_context().wrap_socket(mysocket, server_hostname=self.server)
-                self.socket.connect((self.server, self.port))
 
             if "200" in header:
                 # use parser to find the flag

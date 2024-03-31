@@ -3,12 +3,12 @@ Project 5: Web Crawler
 Important! Sometimes the program will not execute properly, and print: "Error: No login token" and sys exit. Just rerun it.
 Other than the error print, the terminal will give a more confusing href KeyError sometimes(depends on the code version I ended up submiting). Rerun that too.
 
-The program takes a while to run, even with all the performance improvements that I made.
+The program takes a while to run, even with all the performance improvements that I made. It will almost always take less than 30 minutes to run, especially locally.
 
 3700crawler
 This is the primary class of this project: it login into fakebook and crawls through each page to find the flags. The main method 
 here is the run method, which does the login process, after which the program reaches the crawl method, which crawls through 
-fakebook and accesses new links to find the flags. I have a send method which is now only for the run() part, and a send_crawl method which I implemented to read content-length and work with one socket. I have a get_linked_urls method which I optimized pretty well. The run and crawl method may look long, but exluding comments and spaces, they are only 43 and 42 lines respectively.
+fakebook and accesses new links to find the flags. I have a send method which is now only for the run() part, and a send_crawl method which I implemented to read content-length and work with one socket. I have a get_linked_urls method which I optimized pretty well. The run and crawl method may look long, but exluding comments and spaces, they are less than 50 lines.
 
 parser1.py
 This is the helper class for the 3700 crawler. It parses through the html content. It helps find the csrf token, flag, and url.
