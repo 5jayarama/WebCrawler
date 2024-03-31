@@ -65,7 +65,7 @@ class Crawler:
         post_data = f"username={self.username}&password={self.password}&csrfmiddlewaretoken={login_token}&next=/fakebook/"
         post_data_len = len(post_data)
         request = f'''POST /accounts/login/?next=/fakebook/ HTTP/1.1\r\nHost: {self.server}\r\nCookie: {login_cookie}\r\nContent-Length: {post_data_len}\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n{post_data}\r\n\r\n'''
-        # print("Post response Not split: ", self.send(request))
+
         # split the response and get the csrf token and session id
         post_response_split = re.split("\r\n", self.send(request))
         # print("Post Response: ", post_response_split)
@@ -81,16 +81,13 @@ class Crawler:
                     for word in words:
                         if len(word) >= 9 and word[0:9] == "sessionid":
                             self.session_id = word[0:len(word) - 1]
-        # print("Self session id: ", self.session_id)
-        # print("Self csrf token: ", self.csrftoken) 
-        # redirecting to fakebook page (fixed previous 302 error)
+        # redirecting to fakebook page
         request = f'GET /fakebook/ HTTP/1.1\r\nHost:{self.server}:{self.port}\r\n' \
                   f'Cookie: {self.csrftoken}; {self.session_id}\r\n\r\n'
         # print("second get request: ", request)
         login_response = re.split("\r\n\r\n", self.send(request))
 
         # login response of 200 means successfully login
-        # print("login response: ", login_response[0])
         p = Parser("url")
         p.feed(login_response[1])
         # print("Parser results: ", p.results)
@@ -135,8 +132,7 @@ class Crawler:
             chunk = self.socket.recv(content_length - already_received)
             body += chunk.decode('utf-8')
             already_received += len(chunk)
-        response = headers[:header_end_index] + body
-        return response # changed from returning header, body
+        return headers[:header_end_index], body
 
 
     # dechunk by removing every other line in the body
@@ -162,11 +158,7 @@ class Crawler:
     # after logging in, crawl through fakebook to find the necessary flags
     def crawl(self):
         flags_found = 0
-        i = 0
-        if not self.urls_to_visit:
-            print("ran out of urls")
         while self.urls_to_visit: # while there are still flags to find
-            i += 1
             next_url = self.urls_to_visit.pop()
             # print("next url: ", next_url, flush=True)
             # print("flags found: ", flags_found, flush=True)
@@ -181,49 +173,49 @@ class Crawler:
                     "Connection: keep-alive\r\n" + \
                     "\r\n"
             # print("crawl request: ", request)
-            response = self.send_crawl(request)
+            header, body = self.send_crawl(request)
             # print("Resp:", response)
 
-            if "302" in response: # 302 FOUND
+            if "Connection: close" in header:
+                print("connection close in header")
+                mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                # added encryption socket connection with TLS and decoding
+                self.socket = ssl.create_default_context().wrap_socket(mysocket, server_hostname=self.server)
+                self.socket.connect((self.server, self.port))
+
+            if "200" in header:
+                # use parser to find the flag
+                flag_parser = Parser("flag")
+                flag_parser.feed(body)
+                # if the flag is found using parser, then print it
+                if "flag" in flag_parser.results:
+                    print(flag_parser.results["flag"][6:])
+                    flags_found += 1
+                    if flags_found == 5:
+                        return
+                # create a url parser to find more urls
+                url_parser = Parser("url")
+                url_parser.feed(body)
+                # print("finding new urls")
+                if "href" in url_parser.results:
+                    self.get_linked_urls(url_parser.results["href"])
+            elif "302" in header: # 302 FOUND
                 # Try the request again using the new URL given by the server in the Location header
-                headers = re.split("\r\n", response)
+                headers = re.split("\r\n", header)
                 redirect = ""
                 for header in headers:
                     if len(header) >= 8 and header[0:8] == "Location":
                         redirect = header[10:]
                 self.get_linked_urls([redirect])
                 continue
-            
             # if 403 or 404, just abondon url and enter loop again
-            elif "403" in response or "404" in response:
+            elif "403" in header or "404" in header:
                 continue
             # program should not get to anything below here
-            elif "500" in response or "504" in response:
+            elif "500" in header or "504" in header:
                 continue
-
-            # use parser to find the flag
-            flag_parser = Parser("flag")
-            flag_parser.feed(response)
-            # if the flag is found using parser, then print it
-            if "flag" in flag_parser.results:
-                print(flag_parser.results["flag"][6:])
-                flags_found += 1
-                if flags_found == 5:
-                    return
-            # create a url parser to find more urls
-            url_parser = Parser("url")
-            url_parser.feed(response)
-            # print("finding new urls")
-            if "href" in url_parser.results:
-                self.get_linked_urls(url_parser.results["href"])
             else:
                 continue
-            
-            if "Connection: close" in response:
-                mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                # added encryption socket connection with TLS and decoding
-                self.socket = ssl.create_default_context().wrap_socket(mysocket, server_hostname=self.server)
-                self.socket.connect((self.server, self.port))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='crawl Fakebook')
