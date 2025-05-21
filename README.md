@@ -1,14 +1,13 @@
-Project 5: Web Crawler
+Web Crawler 
 
-Important! Sometimes the program will not execute properly, and print: "Error: No login token" and sys exit. Just rerun it.
-Other than the error print, the terminal will give a more confusing href KeyError sometimes(depends on the code version I ended up submiting). Rerun that too.
+Logs into and traverses tens of thousands of pages across the Fakebook website. Does not use python-specific simplifications, like the beautiful soup library.
 
-The program takes a while to run, even with all the performance improvements that I made. It will almost always take less than 30 minutes to run, especially locally.
+The program takes a while to run, even with all the performance improvements that I made. It will almost always take less than 30 minutes to run on the Fakebook website.
 
 3700crawler
-This is the primary class of this project: it login into fakebook and crawls through each page to find the flags. The main method 
+This is the primary class of this project: it login into Fakebook and crawls through each page to find the flags. The main method 
 here is the run method, which does the login process, after which the program reaches the crawl method, which crawls through 
-fakebook and accesses new links to find the flags. I have a send method which is now only for the run() part, and a send_crawl method which I implemented to read content-length and work with one socket. I have a get_linked_urls method which I optimized pretty well. The run and crawl method may look long, but exluding comments and spaces, they are less than 50 lines.
+Fakebook and accesses new links to find the flags. I have a send method which is now only for the run() part, and a send_crawl method which I implemented to read content-length and work with one socket. I have a get_linked_urls method which I optimized pretty well. The run and crawl method may look long, but exluding comments and spaces, they are less than 50 lines.
 
 parser1.py
 This is the helper class for the 3700 crawler. It parses through the html content. It helps find the csrf token, flag, and url.
@@ -26,7 +25,7 @@ long time I wasn't getting urls, but eventually with proper POST and GET request
 Links and crawl-
 I was able to search up some guides on how to use a Parser to retrive links using the -a starttag, and I was able to replicate 
 this for csrf token as well. when I saw the h3 tag for flag in the project description, I added that to the Parser class as well.
-I had some trouble getting urls while traversing fakebook, but this part was easier for me because i was able to find some  
+I had some trouble getting urls while traversing Fakebook, but this part was easier for me because i was able to find some  
 resources online and it had a much better description in the project of how to complete this. 
 Runtime-
 Runtime was absolutely abmyssal though. To improve the runtime, I used set instead of list for urls_to_visit and visited_urls, I remade my program to not use a new socket each crawl iteration, and more.
